@@ -155,7 +155,8 @@ func api(w http.ResponseWriter, r *http.Request) {
 
 	if strings.ToLower(re.Account.Title) == user.Username {
 		// FIXME - make everything take the pointer
-		trakt.Handle(re, *user)
+		// Don't let plex waiting
+		go trakt.Handle(re, *user)
 	} else {
 		log.Println(fmt.Sprintf("Plex username %s does not equal %s, skipping", strings.ToLower(re.Account.Title), user.Username))
 	}
