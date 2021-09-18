@@ -9,6 +9,7 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/goplaxt-docker
 FROM alpine
 LABEL maintainer="xanderstrike@gmail.com"
 WORKDIR /app
+COPY --from=builder /out .
 COPY static ./static
 VOLUME /app/keystore/
 EXPOSE 8000
