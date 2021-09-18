@@ -28,6 +28,9 @@ type Episode struct {
 	Number int    `json:"number"`
 	Title  string `json:"title"`
 	Ids    Ids    `json:"ids"`
+
+	// These are returned only when you get an extended info for an episode
+	Runtime int `json:"runtime"`
 }
 
 // Season represent a season

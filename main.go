@@ -109,12 +109,14 @@ func api(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	logger = logger.WithField("user", user.ID)
+
 	tokenAge := time.Since(user.Updated).Hours()
 	if tokenAge > 1440 { // tokens expire after 3 months, so we refresh after 2
-		log.Println("User access token outdated, refreshing...")
+		logger.Println("User access token outdated, refreshing...")
 		result, err := trakt.AuthRequest(SelfRoot(r), user.Username, "", user.RefreshToken, "refresh_token")
 		if err != nil {
-			log.Println("Refresh failed, skipping and deleting user")
+			logger.Println("Refresh failed, skipping and deleting user")
 			w.WriteHeader(http.StatusUnauthorized)
 			json.NewEncoder(w).Encode("fail")
 			storage.DeleteUser(user.ID)
@@ -122,7 +124,7 @@ func api(w http.ResponseWriter, r *http.Request) {
 		}
 
 		user.UpdateUser(result["access_token"].(string), result["refresh_token"].(string))
-		log.Println("Refreshed, continuing")
+		logger.Println("Refreshed, continuing")
 
 	}
 
@@ -131,17 +133,6 @@ func api(w http.ResponseWriter, r *http.Request) {
 		logger.Errorf("error reading body: %#v", err)
 		http.Error(w, "Failed to read webhook body", http.StatusInternalServerError)
 		return
-	}
-
-	if log.GetLevel() == log.DebugLevel {
-		logger.Debugf("Body data: %#v", r.PostForm)
-		var output map[string]interface{}
-		err := json.Unmarshal([]byte(r.PostFormValue("payload")), &output)
-		if err != nil {
-			logger.Errorf("error parsing payload: %#v", err)
-		} else {
-			logger.Debugf("Parsed payload: %#v", output)
-		}
 	}
 
 	multipart.NewReader(r.Body, r.Header.Get("Content-Type"))
@@ -156,16 +147,16 @@ func api(w http.ResponseWriter, r *http.Request) {
 	if strings.ToLower(re.Account.Title) == user.Username {
 		// FIXME - make everything take the pointer
 		// Don't let plex waiting
-		go trakt.Handle(re, *user)
+		go trakt.Handle(re, *user, logger)
 	} else {
-		log.Println(fmt.Sprintf("Plex username %s does not equal %s, skipping", strings.ToLower(re.Account.Title), user.Username))
+		logger.Errorf("Plex username %s does not equal %s, skipping", strings.ToLower(re.Account.Title), user.Username)
 	}
 
 	json.NewEncoder(w).Encode("success")
 }
 
 func allowedHostsHandler(allowedHostnames string) func(http.Handler) http.Handler {
-	allowedHosts := strings.Split(regexp.MustCompile("https://|http://|\\s+").ReplaceAllString(strings.ToLower(allowedHostnames), ""), ",")
+	allowedHosts := strings.Split(regexp.MustCompile(`https://|http://|\s+`).ReplaceAllString(strings.ToLower(allowedHostnames), ""), ",")
 	log.Println("Allowed Hostnames:", allowedHosts)
 	return func(h http.Handler) http.Handler {
 		fn := func(w http.ResponseWriter, r *http.Request) {
