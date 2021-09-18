@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"html/template"
-	"io/ioutil"
+	"mime/multipart"
 	"net/http"
 	"net/url"
 	"os"
@@ -21,6 +21,8 @@ import (
 	"github.com/xanderstrike/goplaxt/lib/trakt"
 	"github.com/xanderstrike/plexhooks"
 )
+
+const maxMemory = 6 * 1024 * 1024
 
 var storage store.Store
 
@@ -124,7 +126,7 @@ func api(w http.ResponseWriter, r *http.Request) {
 
 	}
 
-	body, err := ioutil.ReadAll(r.Body)
+	err = r.ParseMultipartForm(maxMemory)
 	if err != nil {
 		logger.Errorf("error reading body: %#v", err)
 		http.Error(w, "Failed to read webhook body", http.StatusInternalServerError)
@@ -132,19 +134,24 @@ func api(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if log.GetLevel() == log.DebugLevel {
-		logger.Debugf("body: %s", string(body))
+		logger.Debugf("Body data: %#v", r.PostForm)
+		var output map[string]interface{}
+		err := json.Unmarshal([]byte(r.PostFormValue("payload")), &output)
+		if err != nil {
+			logger.Errorf("error parsing payload: %#v", err)
+		} else {
+			logger.Debugf("Parsed payload: %#v", output)
+		}
 	}
 
-	regex := regexp.MustCompile("({.*})") // not the best way really
-	match := regex.FindStringSubmatch(string(body))
-	re, err := plexhooks.ParseWebhook([]byte(match[0]))
+	multipart.NewReader(r.Body, r.Header.Get("Content-Type"))
+
+	re, err := plexhooks.ParseWebhook([]byte(r.PostFormValue("payload")))
 	if err != nil {
 		logger.Errorf("failed to process webhook: %#v", err)
 		http.Error(w, "Failed to process webhook", http.StatusInternalServerError)
 		return
 	}
-
-	// re := plexhooks.ParseWebhook([]byte(match[0]))
 
 	if strings.ToLower(re.Account.Title) == user.Username {
 		// FIXME - make everything take the pointer
