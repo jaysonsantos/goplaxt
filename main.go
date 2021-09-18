@@ -79,13 +79,24 @@ func authorize(w http.ResponseWriter, r *http.Request) {
 }
 
 func api(w http.ResponseWriter, r *http.Request) {
+	var logger *log.Entry
 	args := r.URL.Query()
+	if log.GetLevel() == log.DebugLevel {
+		fields := make(map[string]interface{}, len(args))
+		for k, v := range args {
+			fields[k] = v
+		}
+		logger = log.WithFields(fields)
+	} else {
+		logger = log.WithField("request", r.URL.Path)
+	}
 	id := args["id"][0]
-	log.Print(fmt.Sprintf("Webhook call for %s", id))
+	logger.Printf("Webhook call for %s", id)
 
 	user, err := storage.GetUser(id)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		logger.Errorf("error getting user: %#v", err)
+		http.Error(w, "Failed to find a valid user", http.StatusInternalServerError)
 		return
 	}
 
@@ -115,14 +126,22 @@ func api(w http.ResponseWriter, r *http.Request) {
 
 	body, err := ioutil.ReadAll(r.Body)
 	if err != nil {
-		panic(err)
+		logger.Errorf("error reading body: %#v", err)
+		http.Error(w, "Failed to read webhook body", http.StatusInternalServerError)
+		return
+	}
+
+	if log.GetLevel() == log.DebugLevel {
+		logger.Debugf("body: %s", string(body))
 	}
 
 	regex := regexp.MustCompile("({.*})") // not the best way really
 	match := regex.FindStringSubmatch(string(body))
 	re, err := plexhooks.ParseWebhook([]byte(match[0]))
 	if err != nil {
-		panic(err)
+		logger.Errorf("failed to process webhook: %#v", err)
+		http.Error(w, "Failed to process webhook", http.StatusInternalServerError)
+		return
 	}
 
 	// re := plexhooks.ParseWebhook([]byte(match[0]))
@@ -177,7 +196,15 @@ func healthcheckHandler() http.Handler {
 }
 
 func main() {
-	log.Print("Started!")
+	if logLevel := os.Getenv("LOG_LEVEL"); logLevel != "" {
+		parsedLogLevel, err := log.ParseLevel(logLevel)
+		if err != nil {
+			log.WithField("logLevel", logLevel).Error("failed to parse log level")
+			parsedLogLevel = log.InfoLevel
+		}
+		log.SetLevel(parsedLogLevel)
+	}
+	log.WithField("logLevel", log.GetLevel().String()).Print("Started!")
 	if os.Getenv("POSTGRESQL_URL") != "" {
 		storage = store.NewPostgresqlStore(store.NewPostgresqlClient(os.Getenv("POSTGRESQL_URL")))
 		log.Println("Using postgresql storage:", os.Getenv("POSTGRESQL_URL"))
