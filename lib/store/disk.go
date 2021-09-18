@@ -32,22 +32,22 @@ func (s DiskStore) WriteUser(user User) {
 }
 
 // GetUser will load a user from disk
-func (s DiskStore) GetUser(id string) *User {
+func (s DiskStore) GetUser(id string) (*User, error) {
 	un, err := s.readField(id, "username")
 	if err != nil {
-		return nil
+		return nil, err
 	}
 	ud, err := s.readField(id, "updated")
 	if err != nil {
-		return nil
+		return nil, err
 	}
 	ac, err := s.readField(id, "access")
 	if err != nil {
-		return nil
+		return nil, err
 	}
 	re, err := s.readField(id, "refresh")
 	if err != nil {
-		return nil
+		return nil, err
 	}
 	updated, _ := time.Parse("01-02-2006", ud)
 	user := User{
@@ -58,7 +58,7 @@ func (s DiskStore) GetUser(id string) *User {
 		Updated:      updated,
 	}
 
-	return &user
+	return &user, nil
 }
 
 func (s DiskStore) DeleteUser(id string) bool {
@@ -80,7 +80,7 @@ func (s DiskStore) readField(id, field string) (string, error) {
 	return s.read(fmt.Sprintf("%s.%s", id, field))
 }
 
-func (s DiskStore) eraseField(id, field string) (error) {
+func (s DiskStore) eraseField(id, field string) error {
 	d := diskv.New(diskv.Options{
 		BasePath:     "keystore",
 		Transform:    flatTransform,

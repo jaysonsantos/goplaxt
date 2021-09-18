@@ -7,7 +7,7 @@ import (
 // Store is the interface for All the store types
 type Store interface {
 	WriteUser(user User)
-	GetUser(id string) *User
+	GetUser(id string) (*User, error)
 	DeleteUser(id string) bool
 	Ping(ctx context.Context) error
 }

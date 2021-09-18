@@ -75,9 +75,12 @@ func api(w http.ResponseWriter, r *http.Request) {
 	id := args["id"][0]
 	log.Print(fmt.Sprintf("Webhook call for %s", id))
 
-	user := storage.GetUser(id)
+	user, err := storage.GetUser(id)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
 
-	if (user == nil) {
+	if user == nil {
 		log.Println("User not found.")
 		w.WriteHeader(http.StatusNotFound)
 		json.NewEncoder(w).Encode("user not found")

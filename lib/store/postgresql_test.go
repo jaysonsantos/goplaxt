@@ -39,7 +39,8 @@ func TestPostgresqlLoadingUser(t *testing.T) {
 		RefreshToken: "refresh123",
 		Updated:      time.Date(2019, 02, 25, 0, 0, 0, 0, time.UTC),
 	})
-	actual, _ := json.Marshal(store.GetUser("id123"))
+	user, _ := store.GetUser("id123")
+	actual, _ := json.Marshal(user)
 
 	assert.EqualValues(t, string(expected), string(actual))
 }
@@ -75,7 +76,8 @@ func TestPostgresqlSavingUser(t *testing.T) {
 	originalUser.save()
 
 	expected, err := json.Marshal(originalUser)
-	actual, err := json.Marshal(store.GetUser("id123"))
+	user, _ := store.GetUser("id123")
+	actual, err := json.Marshal(user)
 
 	assert.EqualValues(t, string(expected), string(actual))
 }

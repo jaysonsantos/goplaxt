@@ -2,13 +2,13 @@ package store
 
 import (
 	"context"
-	"fmt"
 	"strings"
 	"time"
 
 	"database/sql"
 
 	// Postgres db library loading
+	"github.com/gravitational/trace"
 	_ "github.com/lib/pq"
 )
 
@@ -81,7 +81,7 @@ func (s PostgresqlStore) WriteUser(user User) {
 }
 
 // GetUser will load a user from postgres
-func (s PostgresqlStore) GetUser(id string) *User {
+func (s PostgresqlStore) GetUser(id string) (*User, error) {
 	var username string
 	var access string
 	var refresh string
@@ -98,9 +98,9 @@ func (s PostgresqlStore) GetUser(id string) *User {
 	)
 	switch {
 	case err == sql.ErrNoRows:
-		panic(fmt.Errorf("no user with id %s", id))
+		return nil, trace.Errorf("no user with id %s", id)
 	case err != nil:
-		panic(fmt.Errorf("query error: %v", err))
+		return nil, trace.Errorf("query error: %v", err)
 	}
 	user := User{
 		ID:           id,
@@ -111,7 +111,7 @@ func (s PostgresqlStore) GetUser(id string) *User {
 		store:        s,
 	}
 
-	return &user
+	return &user, nil
 }
 
 // TODO: Not Implemented

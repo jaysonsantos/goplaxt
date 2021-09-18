@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/go-redis/redis"
+	"github.com/gravitational/trace"
 )
 
 // RedisStore is a storage engine that writes to redis
@@ -53,16 +54,16 @@ func (s RedisStore) WriteUser(user User) {
 }
 
 // GetUser will load a user from redis
-func (s RedisStore) GetUser(id string) *User {
+func (s RedisStore) GetUser(id string) (*User, error) {
 	data, err := s.client.HGetAll("goplaxt:user:" + id).Result()
 	// FIXME - return err
 	if err != nil {
-		panic(err)
+		return nil, trace.Wrap(err)
 	}
 	updated, err := time.Parse("01-02-2006", data["updated"])
 	// FIXME - return err
 	if err != nil {
-		panic(err)
+		return nil, trace.Wrap(err)
 	}
 	user := User{
 		ID:           id,
@@ -73,7 +74,7 @@ func (s RedisStore) GetUser(id string) *User {
 		store:        s,
 	}
 
-	return &user
+	return &user, nil
 }
 
 // TODO: Not Implemented
