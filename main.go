@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"html/template"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"net/url"
 	"os"
@@ -17,6 +16,7 @@ import (
 	"github.com/etherlabsio/healthcheck"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
+	log "github.com/sirupsen/logrus"
 	"github.com/xanderstrike/goplaxt/lib/store"
 	"github.com/xanderstrike/goplaxt/lib/trakt"
 	"github.com/xanderstrike/plexhooks"
@@ -52,9 +52,17 @@ func authorize(w http.ResponseWriter, r *http.Request) {
 	username := strings.ToLower(args["username"][0])
 	log.Print(fmt.Sprintf("Handling auth request for %s", username))
 	code := args["code"][0]
-	result, _ := trakt.AuthRequest(SelfRoot(r), username, code, "", "authorization_code")
-
-	user := store.NewUser(username, result["access_token"].(string), result["refresh_token"].(string), storage)
+	result, err := trakt.AuthRequest(SelfRoot(r), username, code, "", "authorization_code")
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	user, err := store.NewUser(username, result["access_token"].(string), result["refresh_token"].(string), storage)
+	if err != nil {
+		log.Errorf("error saving user: %#v", err)
+		http.Error(w, "Failed to write user credentials", http.StatusInternalServerError)
+		return
+	}
 
 	url := fmt.Sprintf("%s/api?id=%s", SelfRoot(r), user.ID)
 
@@ -78,6 +86,7 @@ func api(w http.ResponseWriter, r *http.Request) {
 	user, err := storage.GetUser(id)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 
 	if user == nil {
@@ -90,17 +99,18 @@ func api(w http.ResponseWriter, r *http.Request) {
 	tokenAge := time.Since(user.Updated).Hours()
 	if tokenAge > 1440 { // tokens expire after 3 months, so we refresh after 2
 		log.Println("User access token outdated, refreshing...")
-		result, success := trakt.AuthRequest(SelfRoot(r), user.Username, "", user.RefreshToken, "refresh_token")
-		if success {
-			user.UpdateUser(result["access_token"].(string), result["refresh_token"].(string))
-			log.Println("Refreshed, continuing")
-		} else {
+		result, err := trakt.AuthRequest(SelfRoot(r), user.Username, "", user.RefreshToken, "refresh_token")
+		if err != nil {
 			log.Println("Refresh failed, skipping and deleting user")
 			w.WriteHeader(http.StatusUnauthorized)
 			json.NewEncoder(w).Encode("fail")
 			storage.DeleteUser(user.ID)
 			return
 		}
+
+		user.UpdateUser(result["access_token"].(string), result["refresh_token"].(string))
+		log.Println("Refreshed, continuing")
+
 	}
 
 	body, err := ioutil.ReadAll(r.Body)

@@ -4,10 +4,12 @@ import (
 	"fmt"
 	"os"
 	"time"
+
+	"github.com/gravitational/trace"
 )
 
 type store interface {
-	WriteUser(user User)
+	WriteUser(user User) error
 }
 
 // User object
@@ -31,7 +33,7 @@ func uuid() string {
 }
 
 // NewUser creates a new user object
-func NewUser(username, accessToken, refreshToken string, store store) User {
+func NewUser(username, accessToken, refreshToken string, store store) (*User, error) {
 	id := uuid()
 	user := User{
 		ID:           id,
@@ -41,8 +43,10 @@ func NewUser(username, accessToken, refreshToken string, store store) User {
 		Updated:      time.Now(),
 		store:        store,
 	}
-	user.save()
-	return user
+	if err := user.save(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &user, nil
 }
 
 // UpdateUser updates an existing user object
@@ -54,6 +58,6 @@ func (user User) UpdateUser(accessToken, refreshToken string) {
 	user.save()
 }
 
-func (user User) save() {
-	user.store.WriteUser(user)
+func (user User) save() error {
+	return user.store.WriteUser(user)
 }

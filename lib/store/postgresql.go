@@ -60,7 +60,7 @@ func (s PostgresqlStore) Ping(ctx context.Context) error {
 }
 
 // WriteUser will write a user object to postgres
-func (s PostgresqlStore) WriteUser(user User) {
+func (s PostgresqlStore) WriteUser(user User) error {
 	_, err := s.db.Exec(
 		`
 			INSERT INTO users
@@ -75,9 +75,8 @@ func (s PostgresqlStore) WriteUser(user User) {
 		user.RefreshToken,
 		user.Updated,
 	)
-	if err != nil {
-		panic(err)
-	}
+
+	return trace.Wrap(err)
 }
 
 // GetUser will load a user from postgres

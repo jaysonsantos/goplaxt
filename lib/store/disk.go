@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gravitational/trace"
 	"github.com/peterbourgon/diskv"
 )
 
@@ -24,11 +25,20 @@ func (s DiskStore) Ping(ctx context.Context) error {
 }
 
 // WriteUser will write a user object to disk
-func (s DiskStore) WriteUser(user User) {
-	s.writeField(user.ID, "username", user.Username)
-	s.writeField(user.ID, "access", user.AccessToken)
-	s.writeField(user.ID, "refresh", user.RefreshToken)
-	s.writeField(user.ID, "updated", user.Updated.Format("01-02-2006"))
+func (s DiskStore) WriteUser(user User) error {
+	fields := map[string]string{
+		"username": user.Username,
+		"access":   user.AccessToken,
+		"refresh":  user.RefreshToken,
+		"updated":  user.Updated.Format("01-02-2006"),
+	}
+	for k, v := range fields {
+		err := s.writeField(user.ID, k, v)
+		if err != nil {
+			return trace.Errorf("failed to write field %s: %w", k, err)
+		}
+	}
+	return nil
 }
 
 // GetUser will load a user from disk
@@ -69,11 +79,8 @@ func (s DiskStore) DeleteUser(id string) bool {
 	return true
 }
 
-func (s DiskStore) writeField(id, field, value string) {
-	err := s.write(fmt.Sprintf("%s.%s", id, field), value)
-	if err != nil {
-		panic(err)
-	}
+func (s DiskStore) writeField(id, field, value string) error {
+	return s.write(fmt.Sprintf("%s.%s", id, field), value)
 }
 
 func (s DiskStore) readField(id, field string) (string, error) {
