@@ -116,7 +116,7 @@ func api(w http.ResponseWriter, r *http.Request) {
 		logger.Println("User access token outdated, refreshing...")
 		result, err := trakt.AuthRequest(SelfRoot(r), user.Username, "", user.RefreshToken, "refresh_token")
 		if err != nil {
-			logger.Println("Refresh failed, skipping and deleting user")
+			logger.Println(fmt.Errorf("refresh failed, skipping and deleting user %w", err))
 			w.WriteHeader(http.StatusUnauthorized)
 			json.NewEncoder(w).Encode("fail")
 			storage.DeleteUser(user.ID)
