@@ -16,7 +16,7 @@ require (
 	github.com/lib/pq v1.10.3
 	github.com/onsi/gomega v1.16.0 // indirect
 	github.com/peterbourgon/diskv v0.0.0-20180312054125-0646ccaebea1
-	github.com/sirupsen/logrus v1.8.1 // indirect
+	github.com/sirupsen/logrus v1.8.1
 	github.com/stretchr/testify v1.5.1
 	github.com/xanderstrike/plexhooks v0.0.0-20200926011736-c63bcd35fe3e
 	golang.org/x/crypto v0.0.0-20210915214749-c084706c2272 // indirect

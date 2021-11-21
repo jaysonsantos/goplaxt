@@ -33,7 +33,7 @@ func AuthRequest(root, username, code, refreshToken, grantType string) (map[stri
 	}
 	jsonValue, _ := json.Marshal(values)
 
-	resp, err := http.Post("%s/oauth/token", "application/json", bytes.NewBuffer(jsonValue))
+	resp, err := http.Post(fmt.Sprintf("%s/oauth/token", traktApiBasePath), "application/json", bytes.NewBuffer(jsonValue))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
