@@ -47,6 +47,8 @@ github.com/gorilla/mux v1.8.0/go.mod h1:DVbg23sWSpFRCP0SfiEN6jmj59UnW/n46BH5rLB7
 github.com/gravitational/trace v1.1.15 h1:dfaFcARt110nCX6RSvrcRUbvRawEYAasXyCqnhXo0Xg=
 github.com/gravitational/trace v1.1.15/go.mod h1:RvdOUHE4SHqR3oXlFFKnGzms8a5dugHygGw1bqDstYI=
 github.com/hpcloud/tail v1.0.0/go.mod h1:ab1qPbhIpdTxEkNHXyeSf5vhxWSCs/tWer42PpOxQnU=
+github.com/jaysonsantos/plexhooks v0.0.0-20200926011736-c63bcd35fe3e h1:Ih8zu8DPL3DmRGT/OfG9hh72kkRrSCgrhuM3px1TWiY=
+github.com/jaysonsantos/plexhooks v0.0.0-20200926011736-c63bcd35fe3e/go.mod h1:f+7Gfb5QKmOrpNbebbTyQmyNV518q9PD0zCCi69h4OM=
 github.com/jonboulle/clockwork v0.2.2 h1:UOGuzwb1PwsrDAObMuhUnj0p5ULPj8V/xJ7Kx9qUBdQ=
 github.com/jonboulle/clockwork v0.2.2/go.mod h1:Pkfl5aHPm1nk2H9h0bjmnJD/BcgbGXUBGnn1kMkgxc8=
 github.com/kr/pretty v0.2.1 h1:Fmg33tUaq4/8ym9TJN1x7sLJnHVwhP33CNkpYV/7rwI=
@@ -77,8 +79,6 @@ github.com/stretchr/objx v0.1.0/go.mod h1:HFkY916IF+rwdDfMAkV7OtwuqBVzrE8GR6GFx+
 github.com/stretchr/testify v1.2.2/go.mod h1:a8OnRcib4nhh0OaRAV+Yts87kKdq0PP7pXfy6kDkUVs=
 github.com/stretchr/testify v1.5.1 h1:nOGnQDM7FYENwehXlg/kFVnos3rEvtKTjRvOWSzb6H4=
 github.com/stretchr/testify v1.5.1/go.mod h1:5W2xD1RspED5o8YsWQXVCued0rvSQ+mT+I5cxcmMvtA=
-github.com/xanderstrike/plexhooks v0.0.0-20200926011736-c63bcd35fe3e h1:IeBBs3KadFYmbWcRw/qBuM3bscr2iKC1hYBr8GS5Gps=
-github.com/xanderstrike/plexhooks v0.0.0-20200926011736-c63bcd35fe3e/go.mod h1:IXlzovfjAZX8O7nzPwCiYe2T0i/0enZzzqkvVq8N02M=
 github.com/yuin/goldmark v1.2.1/go.mod h1:3hX8gzYuyVAZsxl0MRgGTJEmQBFcNTphYh9decYSb74=
 github.com/yuin/gopher-lua v0.0.0-20190206043414-8bfc7677f583 h1:SZPG5w7Qxq7bMcMVl6e3Ht2X7f+AAGQdzjkbyOnNNZ8=
 github.com/yuin/gopher-lua v0.0.0-20190206043414-8bfc7677f583/go.mod h1:gqRgreBUhTSL0GeU64rtZ3Uq3wtjOa/TB2YfrtkCbVQ=
