@@ -11,16 +11,24 @@ require (
 	github.com/gorilla/mux v1.8.0
 	github.com/gravitational/trace v1.1.15
 	github.com/lib/pq v1.10.3
-	github.com/peterbourgon/diskv v0.0.0-20180312054125-0646ccaebea1
+	github.com/peterbourgon/diskv v2.0.1+incompatible
 	github.com/sirupsen/logrus v1.8.1
-	github.com/stretchr/testify v1.5.1
+	github.com/stretchr/testify v1.7.1
 )
 
 require (
-	github.com/felixge/httpsnoop v1.0.2 // indirect
-	github.com/google/btree v1.0.1 // indirect
+	github.com/AthenZ/athenz v1.10.50
 	github.com/jonboulle/clockwork v0.2.2 // indirect
+	github.com/pkg/errors v0.9.1
+	github.com/uptrace/opentelemetry-go-extra/otellogrus v0.1.12
 	github.com/xanderstrike/plexhooks v0.0.0-20200926011736-c63bcd35fe3e
+	go.opentelemetry.io/contrib/instrumentation/github.com/gorilla/mux/otelmux v0.30.0
+	go.opentelemetry.io/otel v1.6.3
+	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.5.0
+	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.5.0
+	go.opentelemetry.io/otel/metric v0.27.0
+	go.opentelemetry.io/otel/sdk v1.5.0
+	google.golang.org/grpc v1.45.0
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect
 )
 
