@@ -139,7 +139,7 @@ func api(w http.ResponseWriter, r *http.Request) {
 
 	re, err := plexhooks.ParseWebhook([]byte(r.PostFormValue("payload")))
 	if err != nil {
-		logger.Errorf("failed to process webhook: %#v", err)
+		logger.Errorf("failed to process webhook: %#v\n%s", err, r.PostFormValue("payload"))
 		http.Error(w, "Failed to process webhook", http.StatusInternalServerError)
 		return
 	}
