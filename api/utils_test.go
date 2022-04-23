@@ -1,18 +1,32 @@
-package main
+package api
 
 import (
-	"github.com/gorilla/handlers"
-	"github.com/stretchr/testify/assert"
-
 	"context"
 	"errors"
-
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
+	"github.com/gorilla/handlers"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/xanderstrike/goplaxt/lib/store"
 )
+
+type MockSuccessStore struct{}
+
+func (s MockSuccessStore) Ping(ctx context.Context) error         { return nil }
+func (s MockSuccessStore) WriteUser(user store.User) error        { return nil }
+func (s MockSuccessStore) GetUser(id string) (*store.User, error) { return nil, nil }
+func (s MockSuccessStore) DeleteUser(id string) bool              { return true }
+
+type MockFailStore struct{}
+
+func (s MockFailStore) Ping(ctx context.Context) error         { return errors.New("OH NO") }
+func (s MockFailStore) WriteUser(user store.User) error        { panic(errors.New("OH NO")) }
+func (s MockFailStore) GetUser(id string) (*store.User, error) { panic(errors.New("OH NO")) }
+func (s MockFailStore) DeleteUser(id string) bool              { return false }
 
 func TestSelfRoot(t *testing.T) {
 	var (
@@ -40,6 +54,7 @@ func TestSelfRoot(t *testing.T) {
 	// Test ProxyHeader handler
 	rr := httptest.NewRecorder()
 	r, err = http.NewRequest("GET", "/validate", nil)
+	require.NoError(t, err)
 	r.Header.Set("X-Forwarded-Host", "foo.bar")
 	r.Header.Set("X-Forwarded-Proto", "https")
 	handlers.ProxyHeaders(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {})).ServeHTTP(rr, r)
@@ -47,7 +62,7 @@ func TestSelfRoot(t *testing.T) {
 }
 
 func TestAllowedHostsHandler_single_hostname(t *testing.T) {
-	f := allowedHostsHandler("foo.bar")
+	f := AllowedHostsHandler("foo.bar")
 
 	rr := httptest.NewRecorder()
 	r, err := http.NewRequest("GET", "/", nil)
@@ -61,7 +76,7 @@ func TestAllowedHostsHandler_single_hostname(t *testing.T) {
 }
 
 func TestAllowedHostsHandler_multiple_hostnames(t *testing.T) {
-	f := allowedHostsHandler("foo.bar, bar.foo")
+	f := AllowedHostsHandler("foo.bar, bar.foo")
 
 	rr := httptest.NewRecorder()
 	r, err := http.NewRequest("GET", "/", nil)
@@ -75,7 +90,7 @@ func TestAllowedHostsHandler_multiple_hostnames(t *testing.T) {
 }
 
 func TestAllowedHostsHandler_mismatch_hostname(t *testing.T) {
-	f := allowedHostsHandler("unknown.host")
+	f := AllowedHostsHandler("unknown.host")
 
 	rr := httptest.NewRecorder()
 	r, err := http.NewRequest("GET", "/", nil)
@@ -90,7 +105,7 @@ func TestAllowedHostsHandler_mismatch_hostname(t *testing.T) {
 
 func TestAllowedHostsHandler_alwaysAllowHealthcheck(t *testing.T) {
 	storage = &MockSuccessStore{}
-	f := allowedHostsHandler("unknown.host")
+	f := AllowedHostsHandler("unknown.host")
 
 	rr := httptest.NewRecorder()
 	r, err := http.NewRequest("GET", "/healthcheck", nil)
@@ -101,39 +116,4 @@ func TestAllowedHostsHandler_alwaysAllowHealthcheck(t *testing.T) {
 
 	f(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {})).ServeHTTP(rr, r)
 	assert.Equal(t, http.StatusOK, rr.Result().StatusCode)
-}
-
-type MockSuccessStore struct{}
-
-func (s MockSuccessStore) Ping(ctx context.Context) error         { return nil }
-func (s MockSuccessStore) WriteUser(user store.User) error        { return nil }
-func (s MockSuccessStore) GetUser(id string) (*store.User, error) { return nil, nil }
-func (s MockSuccessStore) DeleteUser(id string) bool              { return true }
-
-type MockFailStore struct{}
-
-func (s MockFailStore) Ping(ctx context.Context) error         { return errors.New("OH NO") }
-func (s MockFailStore) WriteUser(user store.User) error        { panic(errors.New("OH NO")) }
-func (s MockFailStore) GetUser(id string) (*store.User, error) { panic(errors.New("OH NO")) }
-func (s MockFailStore) DeleteUser(id string) bool              { return false }
-
-func TestHealthcheck(t *testing.T) {
-	var rr *httptest.ResponseRecorder
-
-	r, err := http.NewRequest("GET", "/healthcheck", nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	storage = &MockSuccessStore{}
-	rr = httptest.NewRecorder()
-	http.Handler(healthcheckHandler()).ServeHTTP(rr, r)
-	assert.Equal(t, http.StatusOK, rr.Result().StatusCode)
-	assert.Equal(t, "{\"status\":\"OK\"}\n", rr.Body.String())
-
-	storage = &MockFailStore{}
-	rr = httptest.NewRecorder()
-	http.Handler(healthcheckHandler()).ServeHTTP(rr, r)
-	assert.Equal(t, http.StatusServiceUnavailable, rr.Result().StatusCode)
-	assert.Equal(t, "{\"status\":\"Service Unavailable\",\"errors\":{\"storage\":\"OH NO\"}}\n", rr.Body.String())
 }
