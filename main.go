@@ -23,7 +23,10 @@ type traceIdPrint struct {
 func (t *traceIdPrint) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx, span := tracing.Tracer.Start(r.Context(), "traceIdPrint")
 	defer span.End()
-	log.WithContext(ctx).WithField("traceId", span.SpanContext().TraceID().String()).Info("here you go")
+	log.WithContext(ctx).
+		WithField("traceId", span.SpanContext().TraceID().String()).
+		WithField("path", r.URL.Path).
+		Info("here you go")
 	t.h.ServeHTTP(w, r)
 }
 
