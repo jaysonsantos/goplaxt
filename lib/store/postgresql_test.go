@@ -1,6 +1,7 @@
 package store
 
 import (
+	"context"
 	"encoding/json"
 	"testing"
 	"time"
@@ -39,7 +40,7 @@ func TestPostgresqlLoadingUser(t *testing.T) {
 		RefreshToken: "refresh123",
 		Updated:      time.Date(2019, 02, 25, 0, 0, 0, 0, time.UTC),
 	})
-	user, _ := store.GetUser("id123")
+	user, _ := store.GetUser(context.Background(), "id123")
 	actual, _ := json.Marshal(user)
 
 	assert.EqualValues(t, string(expected), string(actual))
@@ -73,10 +74,10 @@ func TestPostgresqlSavingUser(t *testing.T) {
 		store:        store,
 	}
 
-	originalUser.save()
+	originalUser.save(context.Background())
 
 	expected, err := json.Marshal(originalUser)
-	user, _ := store.GetUser("id123")
+	user, _ := store.GetUser(context.Background(), "id123")
 	actual, err := json.Marshal(user)
 
 	assert.EqualValues(t, string(expected), string(actual))

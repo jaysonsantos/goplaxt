@@ -2,6 +2,7 @@ package trakt
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -14,7 +15,10 @@ import (
 	"github.com/sirupsen/logrus"
 	log "github.com/sirupsen/logrus"
 	"github.com/xanderstrike/goplaxt/lib/store"
+	"github.com/xanderstrike/goplaxt/tracing"
 	"github.com/xanderstrike/plexhooks"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 const (
@@ -22,7 +26,7 @@ const (
 )
 
 // AuthRequest authorize the connection with Trakt
-func AuthRequest(root, username, code, refreshToken, grantType string) (map[string]interface{}, error) {
+func AuthRequest(ctx context.Context, root, username, code, refreshToken, grantType string) (map[string]interface{}, error) {
 	values := map[string]string{
 		"code":          code,
 		"refresh_token": refreshToken,
@@ -32,8 +36,7 @@ func AuthRequest(root, username, code, refreshToken, grantType string) (map[stri
 		"grant_type":    grantType,
 	}
 	jsonValue, _ := json.Marshal(values)
-
-	resp, err := http.Post(fmt.Sprintf("%s/oauth/token", traktApiBasePath), "application/json", bytes.NewBuffer(jsonValue))
+	resp, err := otelhttp.Post(ctx, fmt.Sprintf("%s/oauth/token", traktApiBasePath), "application/json", bytes.NewBuffer(jsonValue))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -48,33 +51,35 @@ func AuthRequest(root, username, code, refreshToken, grantType string) (map[stri
 }
 
 // Handle determine if an item is a show or a movie
-func Handle(pr plexhooks.PlexResponse, user store.User, log *log.Entry) error {
+func Handle(ctx context.Context, pr plexhooks.PlexResponse, user store.User, log *log.Entry) error {
+	ctx, span := tracing.Tracer.Start(ctx, "trakt.Handle")
+	defer span.End()
+
 	var err error
 	if pr.Metadata.LibrarySectionType == "show" {
-		err = HandleShow(pr, user.AccessToken, log)
+		err = HandleShow(ctx, pr, user.AccessToken, log)
 	} else if pr.Metadata.LibrarySectionType == "movie" {
-		err = HandleMovie(pr, user.AccessToken, log)
+		err = HandleMovie(ctx, pr, user.AccessToken, log)
 	} else {
 		log.Errorf("Unsupported media type: %s", pr.Metadata.LibrarySectionType)
 		return nil
 	}
-	if err != nil {
-		log.Errorf("Error sending to trakt: %#v", err)
-	}
-	return err
+	return trace.Wrap(err)
 }
 
 // HandleShow start the scrobbling for a show
-func HandleShow(pr plexhooks.PlexResponse, accessToken string, log *log.Entry) error {
-	showInfo, err := findShowInfo(pr, log)
+func HandleShow(ctx context.Context, pr plexhooks.PlexResponse, accessToken string, log *log.Entry) error {
+	ctx, span := tracing.Tracer.Start(ctx, "trakt.HandleShow")
+	defer span.End()
+	showInfo, err := findShowInfo(ctx, pr, log)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	episode, err := getExtendedEpisodeInfo(showInfo, log)
+	episode, err := getExtendedEpisodeInfo(ctx, showInfo, log)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	event, progress := getAction(pr, episode.Runtime*60*1000)
+	event, progress := getAction(ctx, pr, episode.Runtime*60*1000)
 
 	scrobbleObject := ShowScrobbleBody{
 		Progress: progress,
@@ -86,15 +91,17 @@ func HandleShow(pr plexhooks.PlexResponse, accessToken string, log *log.Entry) e
 		return trace.Wrap(err)
 	}
 
-	_, err = scrobbleRequest(event, scrobbleJSON, accessToken)
+	_, err = scrobbleRequest(ctx, event, scrobbleJSON, accessToken)
 	return trace.Wrap(err)
 }
 
 // HandleMovie start the scrobbling for a movie
-func HandleMovie(pr plexhooks.PlexResponse, accessToken string, log *log.Entry) error {
-	event, progress := getAction(pr, 0)
+func HandleMovie(ctx context.Context, pr plexhooks.PlexResponse, accessToken string, log *log.Entry) error {
+	ctx, span := tracing.Tracer.Start(ctx, "trakt.HandleMovie")
+	defer span.End()
+	event, progress := getAction(ctx, pr, 0)
 
-	movie, err := findMovie(pr, log)
+	movie, err := findMovie(ctx, pr, log)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -108,11 +115,14 @@ func HandleMovie(pr plexhooks.PlexResponse, accessToken string, log *log.Entry) 
 		return trace.Wrap(err)
 	}
 
-	_, err = scrobbleRequest(event, scrobbleJSON, accessToken)
+	_, err = scrobbleRequest(ctx, event, scrobbleJSON, accessToken)
 	return trace.Wrap(err)
 }
 
-func findShowInfo(pr plexhooks.PlexResponse, log *log.Entry) (*ShowInfo, error) {
+func findShowInfo(ctx context.Context, pr plexhooks.PlexResponse, log *log.Entry) (*ShowInfo, error) {
+	ctx, span := tracing.Tracer.Start(ctx, "trakt.findShowInfo")
+	defer span.End()
+	log = log.WithContext(ctx)
 	var showInfo []ShowInfo
 	var episodeID string
 
@@ -125,7 +135,7 @@ func findShowInfo(pr plexhooks.PlexResponse, log *log.Entry) (*ShowInfo, error) 
 	// so we need to do things a bit differently
 	URL := fmt.Sprintf("%s/search/%s/%s?type=episode", traktApiBasePath, traktService, episodeID)
 
-	respBody, err := makeRequest(URL)
+	respBody, err := makeRequest(ctx, URL)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -134,17 +144,25 @@ func findShowInfo(pr plexhooks.PlexResponse, log *log.Entry) (*ShowInfo, error) 
 		return nil, trace.Wrap(err)
 	}
 
+	if len(showInfo) == 0 {
+		return nil, trace.BadParameter("No show found on trakt %s", URL)
+	}
+
 	log.Print(fmt.Sprintf("Tracking %s - S%02dE%02d using %s", showInfo[0].Show.Title, showInfo[0].Episode.Season, showInfo[0].Episode.Number, traktService))
 
 	return &showInfo[0], nil
 }
 
-func getExtendedEpisodeInfo(showInfo *ShowInfo, log *log.Entry) (*Episode, error) {
-	log = log.WithFields(logrus.Fields{
-		"show":    showInfo.Show.Title,
-		"season":  showInfo.Episode.Season,
-		"episode": showInfo.Episode.Number,
-	})
+func getExtendedEpisodeInfo(ctx context.Context, showInfo *ShowInfo, log *log.Entry) (*Episode, error) {
+	ctx, span := tracing.Tracer.Start(ctx, "trakt.getExtendedEpisodeInfo")
+	defer span.End()
+
+	log = log.WithContext(ctx).
+		WithFields(logrus.Fields{
+			"show":    showInfo.Show.Title,
+			"season":  showInfo.Episode.Season,
+			"episode": showInfo.Episode.Number,
+		})
 
 	log.Print("Getting extended episode info")
 	url := fmt.Sprintf(
@@ -155,7 +173,7 @@ func getExtendedEpisodeInfo(showInfo *ShowInfo, log *log.Entry) (*Episode, error
 		showInfo.Episode.Number,
 	)
 
-	responseBody, err := makeRequest(url)
+	responseBody, err := makeRequest(ctx, url)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -169,8 +187,10 @@ func getExtendedEpisodeInfo(showInfo *ShowInfo, log *log.Entry) (*Episode, error
 
 }
 
-func findMovie(pr plexhooks.PlexResponse, log *log.Entry) (*Movie, error) {
-	log = log.WithFields(logrus.Fields{
+func findMovie(ctx context.Context, pr plexhooks.PlexResponse, log *log.Entry) (*Movie, error) {
+	ctx, span := tracing.Tracer.Start(ctx, "trakt.findMovie")
+	defer span.End()
+	log = log.WithContext(ctx).WithFields(logrus.Fields{
 		"title": pr.Metadata.Title,
 		"year":  pr.Metadata.Year,
 	})
@@ -181,7 +201,7 @@ func findMovie(pr plexhooks.PlexResponse, log *log.Entry) (*Movie, error) {
 		url.PathEscape(pr.Metadata.Title),
 	)
 
-	respBody, err := makeRequest(url)
+	respBody, err := makeRequest(ctx, url)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -201,10 +221,10 @@ func findMovie(pr plexhooks.PlexResponse, log *log.Entry) (*Movie, error) {
 	return nil, trace.Errorf("Could not find movie!")
 }
 
-func makeRequest(url string) ([]byte, error) {
-	client := &http.Client{}
+func makeRequest(ctx context.Context, url string) ([]byte, error) {
+	client := httpClient()
 
-	req, err := http.NewRequest("GET", url, nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -217,6 +237,9 @@ func makeRequest(url string) ([]byte, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if !(resp.StatusCode >= 200 && resp.StatusCode < 300) {
+		return nil, fmt.Errorf("trakt response error %s", resp.Status)
+	}
 	defer resp.Body.Close()
 
 	respBody, err := ioutil.ReadAll(resp.Body)
@@ -227,12 +250,18 @@ func makeRequest(url string) ([]byte, error) {
 	return respBody, nil
 }
 
-func scrobbleRequest(action string, body []byte, accessToken string) ([]byte, error) {
-	client := &http.Client{}
+func httpClient() *http.Client {
+	return &http.Client{Transport: otelhttp.NewTransport(http.DefaultTransport)}
+}
 
+func scrobbleRequest(ctx context.Context, action string, body []byte, accessToken string) ([]byte, error) {
+	ctx, span := tracing.Tracer.Start(ctx, "trakt.scrobbleRequest")
+	defer span.End()
+	span.SetAttributes(attribute.String("action", action))
+	client := httpClient()
 	url := fmt.Sprintf("%s/scrobble/%s", traktApiBasePath, action)
 
-	req, err := http.NewRequest("POST", url, bytes.NewBuffer(body))
+	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewBuffer(body))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -256,8 +285,8 @@ func scrobbleRequest(action string, body []byte, accessToken string) ([]byte, er
 	return respBody, nil
 }
 
-func getAction(pr plexhooks.PlexResponse, runtime int) (string, int) {
-	percentage := calculatePercentage(pr, runtime)
+func getAction(ctx context.Context, pr plexhooks.PlexResponse, runtime int) (string, int) {
+	percentage := calculatePercentage(ctx, pr, runtime)
 	switch pr.Event {
 	case "media.play":
 		return "start", percentage
@@ -273,11 +302,11 @@ func getAction(pr plexhooks.PlexResponse, runtime int) (string, int) {
 	return "", percentage
 }
 
-func calculatePercentage(pr plexhooks.PlexResponse, runtime int) int {
+func calculatePercentage(ctx context.Context, pr plexhooks.PlexResponse, runtime int) int {
 	duration := math.Max(float64(pr.Metadata.Duration), float64(runtime))
 	offset := float64(pr.Metadata.ViewOffset)
 	percentage := int(offset / duration * 100)
-	log.WithFields(log.Fields{
+	log.WithContext(ctx).WithFields(log.Fields{
 		"duration": duration,
 		"offset":   offset,
 	}).Debugf("Calculated percentage: %d", percentage)

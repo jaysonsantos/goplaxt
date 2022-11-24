@@ -3,10 +3,11 @@ package store
 import (
 	"context"
 	"fmt"
+	"github.com/go-redis/redis/v9"
 	"strings"
 	"time"
 
-	"github.com/go-redis/redis"
+	"github.com/go-redis/redis/extra/redisotel/v9"
 	"github.com/gravitational/trace"
 )
 
@@ -22,8 +23,14 @@ func NewRedisClient(addr string, password string) redis.Client {
 		Password: password,
 		DB:       0,
 	})
+	if err := redisotel.InstrumentTracing(client); err != nil {
+		panic(err)
+	}
+	if err := redisotel.InstrumentMetrics(client); err != nil {
+		panic(err)
+	}
 
-	_, err := client.Ping().Result()
+	_, err := client.Ping(context.Background()).Result()
 	// FIXME
 	if err != nil {
 		panic(err)
@@ -40,24 +47,24 @@ func NewRedisStore(client redis.Client) RedisStore {
 
 // Ping will check if the connection works right
 func (s RedisStore) Ping(ctx context.Context) error {
-	_, err := s.client.WithContext(ctx).Ping().Result()
+	_, err := s.client.Ping(ctx).Result()
 	return err
 }
 
 // WriteUser will write a user object to redis
-func (s RedisStore) WriteUser(user User) error {
+func (s RedisStore) WriteUser(ctx context.Context, user User) error {
 	data := make(map[string]interface{})
 	data["username"] = user.Username
 	data["access"] = user.AccessToken
 	data["refresh"] = user.RefreshToken
 	data["updated"] = user.Updated.Format("01-02-2006")
-	status := s.client.HMSet(fmt.Sprintf("goplaxt:user:%s", user.ID), data)
+	status := s.client.HMSet(ctx, fmt.Sprintf("goplaxt:user:%s", user.ID), data)
 	return trace.Wrap(status.Err())
 }
 
 // GetUser will load a user from redis
-func (s RedisStore) GetUser(id string) (*User, error) {
-	data, err := s.client.HGetAll("goplaxt:user:" + id).Result()
+func (s RedisStore) GetUser(ctx context.Context, id string) (*User, error) {
+	data, err := s.client.HGetAll(ctx, "goplaxt:user:"+id).Result()
 	// FIXME - return err
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -80,6 +87,6 @@ func (s RedisStore) GetUser(id string) (*User, error) {
 }
 
 // TODO: Not Implemented
-func (s RedisStore) DeleteUser(id string) bool {
+func (s RedisStore) DeleteUser(ctx context.Context, id string) bool {
 	return true
 }

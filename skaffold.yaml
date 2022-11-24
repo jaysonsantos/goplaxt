@@ -1,0 +1,12 @@
+apiVersion: skaffold/v3
+kind: Config
+metadata:
+  name: goplaxt
+build:
+  artifacts:
+  - image: ghcr.io/jaysonsantos/goplaxt
+    docker:
+      dockerfile: Dockerfile
+manifests:
+  rawYaml:
+  - deployment.yaml

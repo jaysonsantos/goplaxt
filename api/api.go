@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"mime/multipart"
@@ -12,6 +13,8 @@ import (
 	"github.com/xanderstrike/goplaxt/lib/trakt"
 	"github.com/xanderstrike/goplaxt/tracing"
 	"github.com/xanderstrike/plexhooks"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -41,7 +44,7 @@ func ApiHandler(w http.ResponseWriter, r *http.Request) {
 	id := args["id"][0]
 	logger.Printf("Webhook call for %s", id)
 
-	user, err := storage.GetUser(id)
+	user, err := storage.GetUser(ctx, id)
 	if err != nil {
 		logger.Errorf("error getting user: %#v", err)
 		http.Error(w, "Failed to find a valid user", http.StatusInternalServerError)
@@ -60,16 +63,16 @@ func ApiHandler(w http.ResponseWriter, r *http.Request) {
 	tokenAge := time.Since(user.Updated).Hours()
 	if tokenAge > 1440 { // tokens expire after 3 months, so we refresh after 2
 		logger.Println("User access token outdated, refreshing...")
-		result, err := trakt.AuthRequest(SelfRoot(r), user.Username, "", user.RefreshToken, "refresh_token")
+		result, err := trakt.AuthRequest(ctx, SelfRoot(r), user.Username, "", user.RefreshToken, "refresh_token")
 		if err != nil {
 			logger.Println(fmt.Errorf("refresh failed, skipping and deleting user %w", err))
 			w.WriteHeader(http.StatusUnauthorized)
 			json.NewEncoder(w).Encode("fail")
-			storage.DeleteUser(user.ID)
+			storage.DeleteUser(ctx, user.ID)
 			return
 		}
 
-		user.UpdateUser(result["access_token"].(string), result["refresh_token"].(string))
+		user.UpdateUser(ctx, result["access_token"].(string), result["refresh_token"].(string))
 		logger.Println("Refreshed, continuing")
 
 	}
@@ -93,10 +96,23 @@ func ApiHandler(w http.ResponseWriter, r *http.Request) {
 	if strings.ToLower(re.Account.Title) == user.Username {
 		// FIXME - make everything take the pointer
 		// Don't let plex waiting
-		go trakt.Handle(re, *user, logger)
+		go func() {
+			ctx := trace.ContextWithSpan(context.Background(), span)
+			ctx, span := tracing.Tracer.Start(ctx, "Handle in Background")
+			defer span.End()
+
+			err := trakt.Handle(ctx, re, *user, logger)
+			if err != nil {
+				logger.Errorf("error handling webhook: %#v", err)
+				span.RecordError(err, trace.WithStackTrace(true))
+				span.SetStatus(codes.Error, err.Error())
+			}
+		}()
 	} else {
 		logger.Errorf("Plex username %s does not equal %s, skipping", strings.ToLower(re.Account.Title), user.Username)
 	}
 
-	json.NewEncoder(w).Encode("success")
+	if err := json.NewEncoder(w).Encode("success"); err != nil {
+		span.RecordError(err, trace.WithStackTrace(true))
+	}
 }

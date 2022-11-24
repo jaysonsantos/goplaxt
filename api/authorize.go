@@ -21,16 +21,17 @@ type AuthorizePage struct {
 }
 
 func Authorize(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 	args := r.URL.Query()
 	username := strings.ToLower(args["username"][0])
 	log.Print(fmt.Sprintf("Handling auth request for %s", username))
 	code := args["code"][0]
-	result, err := trakt.AuthRequest(SelfRoot(r), username, code, "", "authorization_code")
+	result, err := trakt.AuthRequest(ctx, SelfRoot(r), username, code, "", "authorization_code")
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	user, err := store.NewUser(username, result["access_token"].(string), result["refresh_token"].(string), storage)
+	user, err := store.NewUser(ctx, username, result["access_token"].(string), result["refresh_token"].(string), storage)
 	if err != nil {
 		log.Errorf("error saving user: %#v", err)
 		http.Error(w, "Failed to write user credentials", http.StatusInternalServerError)

@@ -1,6 +1,7 @@
 package store
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"time"
@@ -9,7 +10,7 @@ import (
 )
 
 type store interface {
-	WriteUser(user User) error
+	WriteUser(ctx context.Context, user User) error
 }
 
 // User object
@@ -33,7 +34,7 @@ func uuid() string {
 }
 
 // NewUser creates a new user object
-func NewUser(username, accessToken, refreshToken string, store store) (*User, error) {
+func NewUser(ctx context.Context, username, accessToken, refreshToken string, store store) (*User, error) {
 	id := uuid()
 	user := User{
 		ID:           id,
@@ -43,21 +44,21 @@ func NewUser(username, accessToken, refreshToken string, store store) (*User, er
 		Updated:      time.Now(),
 		store:        store,
 	}
-	if err := user.save(); err != nil {
+	if err := user.save(ctx); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return &user, nil
 }
 
 // UpdateUser updates an existing user object
-func (user User) UpdateUser(accessToken, refreshToken string) {
+func (user User) UpdateUser(ctx context.Context, accessToken, refreshToken string) error {
 	user.AccessToken = accessToken
 	user.RefreshToken = refreshToken
 	user.Updated = time.Now()
 
-	user.save()
+	return trace.Wrap(user.save(ctx))
 }
 
-func (user User) save() error {
-	return user.store.WriteUser(user)
+func (user User) save(ctx context.Context) error {
+	return trace.Wrap(user.store.WriteUser(ctx, user))
 }

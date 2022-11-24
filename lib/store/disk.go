@@ -25,7 +25,7 @@ func (s DiskStore) Ping(ctx context.Context) error {
 }
 
 // WriteUser will write a user object to disk
-func (s DiskStore) WriteUser(user User) error {
+func (s DiskStore) WriteUser(ctx context.Context, user User) error {
 	fields := map[string]string{
 		"username": user.Username,
 		"access":   user.AccessToken,
@@ -42,7 +42,7 @@ func (s DiskStore) WriteUser(user User) error {
 }
 
 // GetUser will load a user from disk
-func (s DiskStore) GetUser(id string) (*User, error) {
+func (s DiskStore) GetUser(ctx context.Context, id string) (*User, error) {
 	un, err := s.readField(id, "username")
 	if err != nil {
 		return nil, err
@@ -71,7 +71,7 @@ func (s DiskStore) GetUser(id string) (*User, error) {
 	return &user, nil
 }
 
-func (s DiskStore) DeleteUser(id string) bool {
+func (s DiskStore) DeleteUser(ctx context.Context, id string) bool {
 	s.eraseField(id, "username")
 	s.eraseField(id, "updated")
 	s.eraseField(id, "access")

@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"github.com/uptrace/opentelemetry-go-extra/otellogrus"
 	"html/template"
 	"net/http"
 	"os"
@@ -15,23 +16,14 @@ import (
 	"go.opentelemetry.io/contrib/instrumentation/github.com/gorilla/mux/otelmux"
 )
 
-type traceIdPrint struct {
-	h http.Handler
-}
-
-// ServeHTTP implements http.Handler
-func (t *traceIdPrint) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	ctx, span := tracing.Tracer.Start(r.Context(), "traceIdPrint")
-	defer span.End()
-	log.WithContext(ctx).
-		WithField("traceId", span.SpanContext().TraceID().String()).
-		WithField("path", r.URL.Path).
-		Info("here you go")
-	t.h.ServeHTTP(w, r)
-}
-
 func main() {
 	ctx := context.Background()
+	log.AddHook(otellogrus.NewHook(otellogrus.WithLevels(
+		log.PanicLevel,
+		log.FatalLevel,
+		log.ErrorLevel,
+		log.WarnLevel,
+	)))
 	tracerShutdown, err := tracing.InitProvider(ctx)
 	if err != nil {
 		log.Fatalf("failed to initialize opentelemetry %v", err)
@@ -63,9 +55,6 @@ func main() {
 
 	router := mux.NewRouter()
 	router.Use(otelmux.Middleware("goplaxt"))
-	router.Use(func(h http.Handler) http.Handler {
-		return &traceIdPrint{h}
-	})
 	// Assumption: Behind a proper web server (nginx/traefik, etc) that removes/replaces trusted headers
 	router.Use(handlers.ProxyHeaders)
 	// which hostnames we are allowing

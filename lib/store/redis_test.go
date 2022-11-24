@@ -31,7 +31,7 @@ func TestLoadingUser(t *testing.T) {
 		RefreshToken: "refresh123",
 		Updated:      time.Date(2019, 02, 25, 0, 0, 0, 0, time.UTC),
 	})
-	user, err := store.GetUser("id123")
+	user, err := store.GetUser(context.Background(), "id123")
 	if err != nil {
 		panic(err)
 	}
@@ -57,7 +57,7 @@ func TestSavingUser(t *testing.T) {
 		store:        store,
 	}
 
-	originalUser.save()
+	originalUser.save(context.Background())
 
 	assert.Equal(t, s.HGet("goplaxt:user:id123", "username"), "halkeye")
 	assert.Equal(t, s.HGet("goplaxt:user:id123", "access"), "access123")
@@ -65,7 +65,7 @@ func TestSavingUser(t *testing.T) {
 	assert.Equal(t, s.HGet("goplaxt:user:id123", "updated"), "02-25-2019")
 
 	expected, _ := json.Marshal(originalUser)
-	user, _ := store.GetUser("id123")
+	user, _ := store.GetUser(context.Background(), "id123")
 	actual, _ := json.Marshal(user)
 
 	assert.EqualValues(t, string(expected), string(actual))

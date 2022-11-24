@@ -16,17 +16,23 @@ import (
 
 type MockSuccessStore struct{}
 
-func (s MockSuccessStore) Ping(ctx context.Context) error         { return nil }
-func (s MockSuccessStore) WriteUser(user store.User) error        { return nil }
-func (s MockSuccessStore) GetUser(id string) (*store.User, error) { return nil, nil }
-func (s MockSuccessStore) DeleteUser(id string) bool              { return true }
+func (s MockSuccessStore) Ping(ctx context.Context) error                       { return nil }
+func (s MockSuccessStore) WriteUser(ctx context.Context, user store.User) error { return nil }
+func (s MockSuccessStore) GetUser(ctx context.Context, id string) (*store.User, error) {
+	return nil, nil
+}
+func (s MockSuccessStore) DeleteUser(ctx context.Context, id string) bool { return true }
 
 type MockFailStore struct{}
 
-func (s MockFailStore) Ping(ctx context.Context) error         { return errors.New("OH NO") }
-func (s MockFailStore) WriteUser(user store.User) error        { panic(errors.New("OH NO")) }
-func (s MockFailStore) GetUser(id string) (*store.User, error) { panic(errors.New("OH NO")) }
-func (s MockFailStore) DeleteUser(id string) bool              { return false }
+func (s MockFailStore) Ping(ctx context.Context) error { return errors.New("OH NO") }
+func (s MockFailStore) WriteUser(ctx context.Context, user store.User) error {
+	panic(errors.New("OH NO"))
+}
+func (s MockFailStore) GetUser(ctx context.Context, id string) (*store.User, error) {
+	panic(errors.New("OH NO"))
+}
+func (s MockFailStore) DeleteUser(ctx context.Context, id string) bool { return false }
 
 func TestSelfRoot(t *testing.T) {
 	var (

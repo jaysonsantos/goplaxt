@@ -60,7 +60,7 @@ func (s PostgresqlStore) Ping(ctx context.Context) error {
 }
 
 // WriteUser will write a user object to postgres
-func (s PostgresqlStore) WriteUser(user User) error {
+func (s PostgresqlStore) WriteUser(ctx context.Context, user User) error {
 	_, err := s.db.Exec(
 		`
 			INSERT INTO users
@@ -80,7 +80,7 @@ func (s PostgresqlStore) WriteUser(user User) error {
 }
 
 // GetUser will load a user from postgres
-func (s PostgresqlStore) GetUser(id string) (*User, error) {
+func (s PostgresqlStore) GetUser(ctx context.Context, id string) (*User, error) {
 	var username string
 	var access string
 	var refresh string
@@ -114,6 +114,6 @@ func (s PostgresqlStore) GetUser(id string) (*User, error) {
 }
 
 // TODO: Not Implemented
-func (s PostgresqlStore) DeleteUser(id string) bool {
+func (s PostgresqlStore) DeleteUser(ctx context.Context, id string) bool {
 	return true
 }
